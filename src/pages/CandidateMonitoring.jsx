@@ -1,19 +1,108 @@
-import { useState } from 'react'
-import WebcamEyeDetection from '../components/WebcamEyeDetection'
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import MediaPipeDetection from '../components/MediaPipeDetection'
+import useSystemStatus from '../hooks/useSystemStatus'
 import { FaCheckCircle, FaVideo, FaEye, FaHeadSideVirus } from 'react-icons/fa'
 
 const CandidateMonitoring = () => {
+  const navigate = useNavigate()
+  const mediaPipeRef = useRef(null)
+  const [currentSessionId, setCurrentSessionId] = useState(null)
+  const [connectionStatus, setConnectionStatus] = useState('Initializing')
+  const [lastSent, setLastSent] = useState(null)
+  
   const [detectionStatus, setDetectionStatus] = useState({
     faceDetected: false,
     eyeTracking: false,
     headPosition: 'Center',
+    eyeMovement: 'Looking Center'
   })
+
+  // Refs to hold latest status for the interval closure without triggering re-runs
+  const detectionStatusRef = useRef(detectionStatus);
+  const systemStatusRef = useRef({ keyboard: 'Unknown', mouse: 'Unknown' });
+
+  // Get system status (keyboard, mouse) from local Python service
+  const { status: systemStatus } = useSystemStatus(1000)
+
+  // Update refs when state changes
+  useEffect(() => {
+    detectionStatusRef.current = detectionStatus;
+  }, [detectionStatus]);
+
+  useEffect(() => {
+    systemStatusRef.current = systemStatus;
+  }, [systemStatus]);
+
+  // Session Initialization
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    let sessionId = params.get('sessionId');
+    
+    if (sessionId) {
+      localStorage.setItem('currentSessionId', sessionId);
+    } else {
+      sessionId = localStorage.getItem('currentSessionId');
+    }
+
+    setCurrentSessionId(sessionId);
+
+    if (!sessionId) {
+      navigate('/candidate/join');
+    }
+  }, [navigate]);
+
+  // Periodically send monitoring data to backend
+  useEffect(() => {
+    if (!currentSessionId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const snapshot = mediaPipeRef.current ? mediaPipeRef.current.getSnapshot() : null;
+        
+        // Use refs to get latest values
+        const currentDetection = detectionStatusRef.current;
+        const currentSystem = systemStatusRef.current;
+
+        const response = await fetch('http://localhost:4000/api/monitoring/save', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sessionId: currentSessionId,
+            userId: 'Candidate',
+            eyeMovement: currentDetection.eyeMovement || 'Unknown',
+            headPosition: currentDetection.headPosition,
+            tabStatus: document.hidden ? 'Switched' : 'Same Tab',
+            keyboardStatus: currentSystem.keyboard || 'Normal',
+            mouseStatus: currentSystem.mouse || 'Normal',
+            image: snapshot
+          }),
+        });
+        
+        if (response.ok) {
+           setConnectionStatus('Connected & Sending');
+           setLastSent(new Date().toLocaleTimeString());
+        } else {
+           setConnectionStatus('Error Sending Data');
+        }
+
+      } catch (error) {
+        console.error('Error sending monitoring data:', error);
+        setConnectionStatus('Connection Failed');
+      }
+    }, 3000); // Send every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [currentSessionId]); // Only re-run if sessionId changes
 
   const handleDetectionUpdate = (data) => {
     setDetectionStatus({
       faceDetected: data.faceDetected,
       eyeTracking: data.eyeTracking,
       headPosition: data.headPosition,
+      eyeMovement: data.eyeMovement
     })
   }
 
@@ -29,6 +118,11 @@ const CandidateMonitoring = () => {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">Interview Session Active</h1>
           <p className="text-gray-600">Monitoring is active. Please keep your face centered.</p>
+          <div className="mt-2 text-sm text-gray-500">
+             Session ID: <span className="font-mono font-bold">{currentSessionId || 'Loading...'}</span> | 
+             Status: <span className={`font-bold ${connectionStatus.includes('Error') || connectionStatus.includes('Failed') ? 'text-red-500' : 'text-green-500'}`}>{connectionStatus}</span> | 
+             Last Sent: {lastSent || 'Never'}
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-8">
@@ -42,9 +136,10 @@ const CandidateMonitoring = () => {
             </p>
           </div>
 
-          {/* Real Webcam with Eye Detection */}
+          {/* Real Webcam with MediaPipe Eye & Head Detection */}
           <div className="mb-8">
-            <WebcamEyeDetection 
+            <MediaPipeDetection 
+              ref={mediaPipeRef}
               onDetectionUpdate={handleDetectionUpdate}
               isCandidate={true}
             />

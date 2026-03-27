@@ -190,3 +190,5 @@ const formatDetectionResult = (yourResult) => {
     blinkCount: yourResult.blinkCount || 0,
   }
 }
+
+

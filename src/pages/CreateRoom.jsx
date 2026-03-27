@@ -12,14 +12,39 @@ const CreateRoom = () => {
   const [copiedPassword, setCopiedPassword] = useState(false)
   const navigate = useNavigate()
 
-  const generateRoom = () => {
-    // Generate dummy room ID and password
-    const id = Math.random().toString(36).substring(2, 8).toUpperCase()
-    const password = Math.floor(1000 + Math.random() * 9000).toString()
-    
-    setRoomId(id)
-    setRoomPassword(password)
-    setRoomCreated(true)
+  const generateRoom = async () => {
+    try {
+      // Get user from localStorage (assuming user is logged in)
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (!user) {
+        alert('Please login first');
+        navigate('/login');
+        return;
+      }
+
+      const response = await fetch('http://localhost:4000/api/sessions/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          interviewerId: user.id || user._id, // Adjust based on your user object structure
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setRoomId(data.session.sessionId);
+        setRoomPassword('No Password Required'); // Simplified for this flow
+        setRoomCreated(true);
+      } else {
+        alert('Failed to create session: ' + data.error);
+      }
+    } catch (error) {
+      console.error('Error creating session:', error);
+      alert('Error connecting to server');
+    }
   }
 
   const copyToClipboard = (text, type) => {
@@ -34,7 +59,7 @@ const CreateRoom = () => {
   }
 
   const handleStartMonitoring = () => {
-    navigate('/interviewer/live-monitoring')
+    navigate(`/interviewer/live-monitoring/${roomId}`)
   }
 
   return (
@@ -150,3 +175,5 @@ const CreateRoom = () => {
 }
 
 export default CreateRoom
+
+

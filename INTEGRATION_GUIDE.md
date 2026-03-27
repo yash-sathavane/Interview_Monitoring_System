@@ -1,22 +1,20 @@
 # Eye Detection Integration Guide
 
-## आपका Existing Eye Detection Code कैसे Integrate करें
+## Existing Eye Detection Code how to Integrate 
 
-### Step 1: अपना Eye Detection Code Share करें
+### Step 1: our Eye Detection Code Share 
 
-अगर आपके पास पहले से eye detection code है, तो उसे `src/utils/eyeDetection.js` file में integrate करें।
-
-### Step 2: Face-API.js का उपयोग (Recommended)
+### Step 2: Face-API.js  (Recommended)
 
 #### Installation:
 ```bash
 npm install face-api.js
 ```
 
-#### Models Download करें:
-1. [face-api.js models](https://github.com/justadudewhohacks/face-api.js-models) से models download करें
-2. `public/models/` folder बनाएं
-3. Models को वहां copy करें:
+#### Models Download :
+1. [face-api.js models](https://github.com/justadudewhohacks/face-api.js-models) से models download 
+2. `public/models/` folder 
+3. Models copy 
    - `tiny_face_detector_model-weights_manifest.json`
    - `tiny_face_detector_model-shard1`
    - `face_landmark_68_model-weights_manifest.json`
@@ -24,7 +22,7 @@ npm install face-api.js
 
 #### Code Update:
 
-`src/utils/eyeDetection.js` में अपना code add करें:
+`src/utils/eyeDetection.js`  code add :
 
 ```javascript
 import * as faceapi from 'face-api.js'
@@ -133,7 +131,7 @@ const calculateEyeGaze = (leftEye, rightEye) => {
 
 ### Step 3: WebcamEyeDetection Component Update करें
 
-`src/components/WebcamEyeDetection.jsx` में `detectEyes` function को update करें:
+`src/components/WebcamEyeDetection.jsx`detectEyes` function update :
 
 ```javascript
 import { detectEyes } from '../utils/eyeDetection'
@@ -144,8 +142,7 @@ setDetectionStatus(actualDetection)
 ```
 
 ### Step 4: MediaPipe का उपयोग (Alternative)
-
-अगर आप MediaPipe use करना चाहते हैं:
+ MediaPipe use :
 
 ```bash
 npm install @mediapipe/face_mesh @mediapipe/camera_utils
@@ -153,7 +150,7 @@ npm install @mediapipe/face_mesh @mediapipe/camera_utils
 
 ### Step 5: अपना Custom Code Integrate करें
 
-अगर आपके पास अपना custom eye detection code है:
+
 
 1. `src/utils/eyeDetection.js` में अपना function add करें
 2. `WebcamEyeDetection.jsx` में उसे call करें
@@ -168,18 +165,5 @@ npm install @mediapipe/face_mesh @mediapipe/camera_utils
 }
 ```
 
-### Step 6: Testing
 
-1. Browser में webcam permission allow करें
-2. Live Monitoring page पर जाएं
-3. Real-time detection देखें
 
-## Troubleshooting
-
-- **Webcam नहीं खुल रहा**: Browser permissions check करें
-- **Detection slow है**: Model size कम करें या frame rate reduce करें
-- **Eye detection accurate नहीं**: Threshold values adjust करें
-
-## Support
-
-अगर आपको help चाहिए, तो अपना existing code share करें और मैं उसे integrate करने में help करूंगा!

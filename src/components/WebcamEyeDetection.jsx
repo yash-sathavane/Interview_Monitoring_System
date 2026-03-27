@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { FaEye, FaHeadSideVirus, FaVideo } from 'react-icons/fa'
+import { FaceMesh } from '@mediapipe/face_mesh'
+import { Camera } from '@mediapipe/camera_utils'
+import { detectFaceAndEyes, getNoseCoordinates } from '../utils/mediapipeDetection'
 
 const WebcamEyeDetection = ({ onDetectionUpdate, isCandidate = false }) => {
   const videoRef = useRef(null)
@@ -12,135 +15,117 @@ const WebcamEyeDetection = ({ onDetectionUpdate, isCandidate = false }) => {
     eyeMovement: 'Looking Center',
     blinkCount: 0,
   })
+  
+  const faceMeshRef = useRef(null)
+  const cameraRef = useRef(null)
 
   useEffect(() => {
-    let stream = null
-    let animationFrame = null
+    // Initialize MediaPipe Face Mesh (आपके Python code जैसा)
+    const initializeDetection = () => {
+      if (!videoRef.current) return
 
-    const startWebcam = async () => {
-      try {
-        // Request webcam access
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            width: 640, 
-            height: 480,
-            facingMode: 'user'
-          }
-        })
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-          videoRef.current.play()
-          setIsDetecting(true)
-          startDetection()
+      // Initialize Face Mesh with your exact settings
+      faceMeshRef.current = new FaceMesh({
+        locateFile: (file) => {
+          return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
         }
-      } catch (error) {
-        console.error('Error accessing webcam:', error)
-        alert('Webcam access denied. Please allow camera permissions.')
-      }
-    }
+      })
 
-    const startDetection = () => {
-      // Load face-api.js models (you'll need to install: npm install face-api.js)
-      // For now, using a simple detection simulation
-      detectEyes()
-    }
+      faceMeshRef.current.setOptions({
+        maxNumFaces: 1,
+        refineLandmarks: true,
+        minDetectionConfidence: 0.7,
+        minTrackingConfidence: 0.7
+      })
 
-    const detectEyes = () => {
-      if (!videoRef.current || !canvasRef.current) return
+      // On results callback (आपके while loop जैसा)
+      faceMeshRef.current.onResults((results) => {
+        if (!videoRef.current || !canvasRef.current) return
 
-      const video = videoRef.current
-      const canvas = canvasRef.current
-      const ctx = canvas.getContext('2d')
+        const video = videoRef.current
+        const canvas = canvasRef.current
+        const ctx = canvas.getContext('2d')
 
-      // Set canvas dimensions
-      canvas.width = video.videoWidth || 640
-      canvas.height = video.videoHeight || 480
+        // Set canvas dimensions
+        canvas.width = video.videoWidth || 640
+        canvas.height = video.videoHeight || 480
 
-      const detect = async () => {
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-          // Draw video frame to canvas
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        // Draw video frame (cv2.imshow जैसा)
+        ctx.save()
+        ctx.scale(-1, 1) // Flip horizontally (cv2.flip जैसा)
+        ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height)
+        ctx.restore()
 
-          // Real eye detection (Replace simulateEyeDetection with your actual detection)
-          const detectionResult = await simulateEyeDetection()
+        // Detect using your logic
+        const detection = detectFaceAndEyes(
+          results,
+          canvas.width,
+          canvas.height
+        )
 
-          // Update detection status
-          setDetectionStatus(prev => ({
-            ...detectionResult,
-            blinkCount: detectionResult.blinkCount > prev.blinkCount 
-              ? detectionResult.blinkCount 
-              : prev.blinkCount + (detectionResult.blinkCount > 0 ? 1 : 0)
-          }))
+        // Update state
+        setDetectionStatus(prev => ({
+          ...detection,
+          blinkCount: prev.blinkCount // Keep previous blink count
+        }))
+
+        // Notify parent
+        if (onDetectionUpdate) {
+          onDetectionUpdate(detection)
+        }
+
+        // Draw nose point (आपके code जैसा - cv2.circle)
+        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+          const face = results.multiFaceLandmarks[0]
+          const noseCoords = getNoseCoordinates(face, canvas.width, canvas.height)
           
-          // Notify parent component
-          if (onDetectionUpdate) {
-            onDetectionUpdate({
-              ...detectionResult,
-              blinkCount: detectionStatus.blinkCount + (detectionResult.blinkCount > 0 ? 1 : 0)
-            })
+          if (noseCoords) {
+            // Draw nose point (green circle - आपके code जैसा)
+            ctx.fillStyle = '#00ff00'
+            ctx.beginPath()
+            ctx.arc(noseCoords.x, noseCoords.y, 5, 0, 2 * Math.PI)
+            ctx.fill()
+
+            // Draw text (आपके cv2.putText जैसा)
+            ctx.fillStyle = '#ffff00'
+            ctx.font = 'bold 20px Arial'
+            ctx.fillText(`Eye: ${detection.eyeMovement}`, 30, 40)
+            
+            ctx.fillStyle = '#ff0000'
+            ctx.fillText(`Head: ${detection.headPosition}`, 30, 70)
           }
-
-          // Draw detection overlay (optional)
-          drawDetectionOverlay(ctx, detectionResult)
         }
+      })
 
-        if (isDetecting) {
-          animationFrame = requestAnimationFrame(detect)
-        }
-      }
+      // Initialize camera
+      cameraRef.current = new Camera(videoRef.current, {
+        onFrame: async () => {
+          await faceMeshRef.current.send({ image: videoRef.current })
+        },
+        width: 640,
+        height: 480
+      })
 
-      detect()
+      cameraRef.current.start()
+      setIsDetecting(true)
     }
 
-    const simulateEyeDetection = async () => {
-      // Option 1: Use Face-API.js (uncomment when models are loaded)
-      // import { detectFaceAndEyes } from '../utils/faceApiDetection'
-      // return await detectFaceAndEyes(video)
-      
-      // Option 2: Use your custom detection code
-      // import { useCustomDetection } from '../utils/faceApiDetection'
-      // return await useCustomDetection(video)
-      
-      // Option 3: Temporary simulation (remove when real detection is ready)
-      return {
-        faceDetected: true,
-        eyeTracking: true,
-        headPosition: Math.random() > 0.7 ? 'Down' : Math.random() > 0.5 ? 'Side' : 'Center',
-        eyeMovement: Math.random() > 0.8 ? 'Looking Away' : 'Looking Center',
-        blinkCount: detectionStatus.blinkCount + (Math.random() > 0.95 ? 1 : 0),
-      }
+    // Start detection
+    if (videoRef.current) {
+      initializeDetection()
     }
-
-    const drawDetectionOverlay = (ctx, detection) => {
-      // Draw face detection box
-      if (detection.faceDetected) {
-        ctx.strokeStyle = '#00ff00'
-        ctx.lineWidth = 2
-        ctx.strokeRect(50, 50, 200, 250)
-        
-        // Draw eye points
-        ctx.fillStyle = detection.eyeMovement === 'Looking Center' ? '#00ff00' : '#ff0000'
-        ctx.beginPath()
-        ctx.arc(120, 150, 5, 0, 2 * Math.PI) // Left eye
-        ctx.arc(180, 150, 5, 0, 2 * Math.PI) // Right eye
-        ctx.fill()
-      }
-    }
-
-    startWebcam()
 
     // Cleanup
     return () => {
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame)
+      if (cameraRef.current) {
+        cameraRef.current.stop()
       }
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop())
+      if (faceMeshRef.current) {
+        faceMeshRef.current.close()
       }
       setIsDetecting(false)
     }
-  }, [])
+  }, [onDetectionUpdate])
 
   return (
     <div className="relative">

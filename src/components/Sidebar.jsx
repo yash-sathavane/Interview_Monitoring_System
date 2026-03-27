@@ -13,8 +13,8 @@ const Sidebar = () => {
   const menuItems = [
     { path: '/interviewer/dashboard', icon: FaHome, label: 'Dashboard' },
     { path: '/interviewer/create-room', icon: FaPlusCircle, label: 'Create Room' },
-    { path: '/interviewer/live-monitoring', icon: FaVideo, label: 'Live Monitoring' },
-    { path: '/interviewer/report', icon: FaChartBar, label: 'Reports' },
+    // { path: '/interviewer/live-monitoring', icon: FaVideo, label: 'Live Monitoring' }, // Removed: Live Monitoring is session-specific
+    { path: '/interviewer/reports', icon: FaChartBar, label: 'Reports' },
   ]
 
   const isActive = (path) => location.pathname === path
@@ -59,3 +59,5 @@ const Sidebar = () => {
 }
 
 export default Sidebar
+
+

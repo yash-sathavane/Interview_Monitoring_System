@@ -1,18 +1,47 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FaKey, FaLock, FaSignInAlt } from 'react-icons/fa'
 
 const CandidateJoin = () => {
   const [roomId, setRoomId] = useState('')
+  const [candidateName, setCandidateName] = useState('')
   const [roomPassword, setRoomPassword] = useState('')
   const navigate = useNavigate()
 
-  const handleJoin = (e) => {
+  const handleJoin = async (e) => {
     e.preventDefault()
-    if (roomId && roomPassword) {
-      navigate('/candidate/monitoring')
+    if (roomId && candidateName) {
+      try {
+        const response = await fetch('http://localhost:4000/api/sessions/join', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+              sessionId: roomId,
+              candidateName: candidateName 
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // Store session ID for use in monitoring page
+          localStorage.setItem('currentSessionId', roomId);
+          navigate('/candidate/monitoring');
+        } else {
+          if (response.status === 404) {
+             alert('Session not found! Please check the Room ID or ask the interviewer for a new one.');
+          } else {
+             alert('Failed to join: ' + (data.error || 'Unknown error'));
+          }
+        }
+      } catch (error) {
+        console.error('Error joining session:', error);
+        alert('Error connecting to server. Please ensure the backend is running.');
+      }
     } else {
-      alert('Please enter both Room ID and Password')
+      alert('Please enter Room ID and Name')
     }
   }
 
@@ -45,20 +74,23 @@ const CandidateJoin = () => {
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Room Password
+                Your Name
               </label>
               <div className="relative">
-                <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <FaSignInAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  value={roomPassword}
-                  onChange={(e) => setRoomPassword(e.target.value)}
-                  className="input-field pl-10 font-mono"
-                  placeholder="Enter Password"
+                  value={candidateName}
+                  onChange={(e) => setCandidateName(e.target.value)}
+                  className="input-field pl-10"
+                  placeholder="Enter your full name"
                   required
                 />
               </div>
             </div>
+
+            {/* Password field removed as per new simplified requirement */}
+
 
             <button
               type="submit"
@@ -81,3 +113,5 @@ const CandidateJoin = () => {
 }
 
 export default CandidateJoin
+
+

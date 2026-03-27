@@ -1,20 +1,52 @@
+import { useEffect, useState } from 'react'
 import Sidebar from '../components/Sidebar'
 import Navbar from '../components/Navbar'
 import { Link } from 'react-router-dom'
-import { FaVideo, FaChartBar, FaPlusCircle, FaClock } from 'react-icons/fa'
+import useSystemStatus from '../hooks/useSystemStatus'
+import { FaVideo, FaChartBar, FaPlusCircle, FaClock, FaKeyboard, FaMouse, FaWindowRestore } from 'react-icons/fa'
 
 const InterviewerDashboard = () => {
-  const stats = [
-    { label: 'Active Interviews', value: '3', icon: FaVideo, color: 'bg-blue-500' },
-    { label: 'Total Reports', value: '24', icon: FaChartBar, color: 'bg-green-500' },
-    { label: 'Rooms Created', value: '12', icon: FaPlusCircle, color: 'bg-purple-500' },
-    { label: 'Avg. Duration', value: '45m', icon: FaClock, color: 'bg-orange-500' },
-  ]
+  // Fetch system status from Python backend
+  const { status: systemStatus, loading: systemLoading, error: systemError } = useSystemStatus(2000) // Poll every 2 seconds
+  const [recentInterviews, setRecentInterviews] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const recentInterviews = [
-    { id: 'ABC123', candidate: 'Alice Johnson', status: 'Active', time: '15:30' },
-    { id: 'DEF456', candidate: 'Bob Smith', status: 'Completed', time: '14:20' },
-    { id: 'GHI789', candidate: 'Charlie Brown', status: 'Active', time: '13:45' },
+  useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        const userStr = localStorage.getItem('user')
+        if (!userStr) return
+        
+        const user = JSON.parse(userStr)
+        const response = await fetch(`http://localhost:4000/api/sessions/interviewer/${user._id}`)
+        
+        if (response.ok) {
+          const data = await response.json()
+          // Transform data to match UI needs
+          const formatted = data.map(session => ({
+            id: session.sessionId,
+            candidate: session.candidateName || session.candidateEmail || "Guest",
+            status: session.status === 'created' ? 'Pending' : session.status.charAt(0).toUpperCase() + session.status.slice(1),
+            time: new Date(session.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            date: new Date(session.createdAt).toLocaleDateString()
+          }))
+          setRecentInterviews(formatted)
+        }
+      } catch (error) {
+        console.error("Failed to fetch sessions:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchSessions()
+  }, [])
+
+  const stats = [
+    { label: 'Active Interviews', value: recentInterviews.filter(i => i.status === 'Active').length, icon: FaVideo, color: 'bg-blue-500' },
+    { label: 'Total Reports', value: recentInterviews.filter(i => i.status === 'Completed').length, icon: FaChartBar, color: 'bg-green-500' },
+    { label: 'Rooms Created', value: recentInterviews.length, icon: FaPlusCircle, color: 'bg-purple-500' },
+    { label: 'Avg. Duration', value: '45m', icon: FaClock, color: 'bg-orange-500' },
   ]
 
   return (
@@ -59,39 +91,59 @@ const InterviewerDashboard = () => {
                 >
                   Create New Room
                 </Link>
+                {/* 
                 <Link
                   to="/interviewer/live-monitoring"
                   className="block w-full btn-secondary text-center py-3"
                 >
                   View Live Monitoring
                 </Link>
+                */}
               </div>
             </div>
 
             {/* Recent Interviews */}
             <div className="card">
               <h2 className="text-xl font-bold text-gray-800 mb-4">Recent Interviews</h2>
-              <div className="space-y-3">
-                {recentInterviews.map((interview) => (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {loading ? <p>Loading sessions...</p> : recentInterviews.length === 0 ? <p>No interviews found.</p> : recentInterviews.map((interview) => (
                   <div
                     key={interview.id}
                     className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     <div>
                       <p className="font-semibold text-gray-800">{interview.candidate}</p>
-                      <p className="text-sm text-gray-600">Room: {interview.id}</p>
+                      <p className="text-sm text-gray-600">Room: {interview.id} | {interview.date}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right flex items-center space-x-3">
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-semibold ${
                           interview.status === 'Active'
                             ? 'bg-green-100 text-green-700'
+                            : interview.status === 'Completed'
+                            ? 'bg-blue-100 text-blue-700'
                             : 'bg-gray-100 text-gray-700'
                         }`}
                       >
                         {interview.status}
                       </span>
-                      <p className="text-xs text-gray-500 mt-1">{interview.time}</p>
+                      
+                      {interview.status === 'Completed' && (
+                         <Link 
+                           to={`/interviewer/report/${interview.id}`}
+                           className="text-xs text-blue-600 hover:underline"
+                         >
+                           View Report
+                         </Link>
+                      )}
+                       {interview.status === 'Active' && (
+                         <Link 
+                           to={`/interviewer/live-monitoring/${interview.id}`}
+                           className="text-xs text-green-600 hover:underline"
+                         >
+                           Monitor
+                         </Link>
+                      )}
                     </div>
                   </div>
                 ))}
